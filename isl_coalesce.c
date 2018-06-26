@@ -2196,7 +2196,8 @@ static enum isl_change separating_equality(int i, int j,
 	if (all(info[j].eq, 2 * info[j].bmap->n_eq, STATUS_VALID) &&
 	    all_ineq_valid_or_single_adj_ineq(&info[j]))
 		change = is_adj_ineq_extension(j, i, info);
-
+        if(change != isl_change_none)
+            isl_coalescing_statistics(1, SEPERATE_EQ);
 	clear_status(&info[i]);
 	clear_status(&info[j]);
 	return change;
@@ -2320,8 +2321,7 @@ static enum isl_change coalesce_local_pair_reuse(int i, int j,
 		goto error;
 	if (any_eq(&info[j], STATUS_ERROR))
 		goto error;
-
-	if (any_eq(&info[i], STATUS_SEPARATE))
+        if (any_eq(&info[i], STATUS_SEPARATE))
 		return separating_equality(i, j, info);
 	if (any_eq(&info[j], STATUS_SEPARATE))
 		return separating_equality(j, i, info);
@@ -3165,7 +3165,7 @@ static enum isl_change coalesce_with_expanded_divs(
 	    all(info_i->ineq, bmap->n_ineq, STATUS_VALID)) {
 		drop(&info[j]);
 		change = isl_change_drop_second;
-            isl_coalescing_statistics(1, SUBSET);
+            isl_coalescing_statistics(1, SUBSET_EXP_DIVS);
 	}
 
 	if (change == isl_change_none && i != -1)
@@ -3622,7 +3622,6 @@ static enum isl_change coalesce_with_subs(int i, int j,
 	dim -= isl_basic_map_dim(bmap_j, isl_dim_div);
 	if (add_subs(&info[j], list, dim) < 0)
 		goto error;
-
 	change = coalesce_local_pair(i, j, info);
 	if (change != isl_change_none && change != isl_change_drop_first) {
 		isl_basic_map_free(bmap_j);
@@ -3781,7 +3780,6 @@ static enum isl_change coalesce_pair(int i, int j,
 	if (change != isl_change_none) {
 		return change;
         }
-
 	return check_coalesce_eq(i, j, info);
 }
 
