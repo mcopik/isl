@@ -34,6 +34,8 @@
 #include <set_to_map.c>
 #include <set_from_map.c>
 
+#include <assert.h>
+
 #define STATUS_ERROR		-1
 #define STATUS_REDUNDANT	 1
 #define STATUS_VALID	 	 2
@@ -41,6 +43,18 @@
 #define STATUS_CUT	 	 4
 #define STATUS_ADJ_EQ	 	 5
 #define STATUS_ADJ_INEQ	 	 6
+
+
+int isl_coalescing_statistics(int update, coalescing_t type)
+{
+    // zero-init by default
+    static int statistics[LAST];
+    if(update)
+        ++statistics[type];
+    else
+        return statistics[type];
+    return 0;
+}
 
 static int status_in(isl_int *ineq, struct isl_tab *tab)
 {
@@ -1919,10 +1933,20 @@ static enum isl_change check_single_adj_eq(int i, int j,
 		change = is_relaxed_extension(i, j, 1 + n_cut, relax, info);
 	if (n_cut > 0)
 		free(relax);
-	if (change != isl_change_none)
+        // Case "Extension" 5
+        // Constraint can be relaxed to include adjacent equality.
+    if (change != isl_change_none) {
+        isl_coalescing_statistics(1, EXT);
 		return change;
+    }
 
 	change = can_wrap_in_facet(i, j, k, info, n_cut > 0);
+
+    // Case "Wrapped extension" 6
+    // Adjacent equality can be wrapped
+    if (change != isl_change_none) {
+            isl_coalescing_statistics(1, WRAP_EXT);
+    }
 
 	return change;
 }
@@ -2302,34 +2326,76 @@ static enum isl_change coalesce_local_pair_reuse(int i, int j,
 	if (any_eq(&info[j], STATUS_SEPARATE))
 		return separating_equality(j, i, info);
 
+        // Case: "Subset" 1
 	if (all(info[i].eq, 2 * info[i].bmap->n_eq, STATUS_VALID) &&
 	    all(info[i].ineq, info[i].bmap->n_ineq, STATUS_VALID)) {
 		drop(&info[j]);
 		change = isl_change_drop_second;
-	} else if (all(info[j].eq, 2 * info[j].bmap->n_eq, STATUS_VALID) &&
-		   all(info[j].ineq, info[j].bmap->n_ineq, STATUS_VALID)) {
+                isl_coalescing_statistics(1, SUBSET);
+	}
+        // Case: "Subset" 1
+        else if (all(info[j].eq, 2 * info[j].bmap->n_eq, STATUS_VALID) &&
+           all(info[j].ineq, info[j].bmap->n_ineq, STATUS_VALID)) {
 		drop(&info[i]);
 		change = isl_change_drop_first;
-	} else if (any_eq(&info[i], STATUS_ADJ_EQ)) {
+                isl_coalescing_statistics(1, SUBSET);
+	}
+        // Case: "Two adjacent equalities", 8
+        // A single pair of equalities seperating maps living in adjacent hyperplanes
+        else if (any_eq(&info[i], STATUS_ADJ_EQ)) {
 		change = check_eq_adj_eq(i, j, info);
-	} else if (any_eq(&info[j], STATUS_ADJ_EQ)) {
-		change = check_eq_adj_eq(j, i, info);
-	} else if (any_eq(&info[i], STATUS_ADJ_INEQ) ||
+                if(change != isl_change_none)
+                    isl_coalescing_statistics(1, TWO_ADJ_EQ);
+	}
+        // Case: "Two adjacent equalities", 8
+        // A single pair of equalities seperating maps living in adjacent hyperplanes
+        else if (any_eq(&info[j], STATUS_ADJ_EQ)) {
+                change = check_eq_adj_eq(j, i, info);
+                if(change != isl_change_none)
+                    isl_coalescing_statistics(1, TWO_ADJ_EQ);
+	}
+        // Cases: "Extension" and "Wrapped extension", 5 & 6
+        // Statistics accumulation inside the function to distinguish between these
+        // two cases.
+        else if (any_eq(&info[i], STATUS_ADJ_INEQ) ||
 		   any_eq(&info[j], STATUS_ADJ_INEQ)) {
 		change = check_adj_eq(i, j, info);
-	} else if (any_ineq(&info[i], STATUS_ADJ_EQ)) {
+	}
+        // Case: "A constratint adjacent to an inequality", 4
+        // All constraints are valied except one which is adjacent to another inequality
+        else if (any_ineq(&info[i], STATUS_ADJ_EQ)) {
 		change = check_ineq_adj_eq(i, j, info);
+                if(change != isl_change_none)
+                    isl_coalescing_statistics(1, ADJ_INEQ);
 	} else if (any_ineq(&info[j], STATUS_ADJ_EQ)) {
 		change = check_ineq_adj_eq(j, i, info);
-	} else if (any_ineq(&info[i], STATUS_ADJ_INEQ) ||
+                if(change != isl_change_none)
+                    isl_coalescing_statistics(1, ADJ_INEQ);
+	}
+        // Case "Pair of adjacent inequalities" 3
+        // All constraints are valid except a single pair of adjacent inequalities.
+        // Two maps can be replaced by a single one consisting of valid constraints.
+        else if (any_ineq(&info[i], STATUS_ADJ_INEQ) ||
 		   any_ineq(&info[j], STATUS_ADJ_INEQ)) {
 		change = check_adj_ineq(i, j, info);
+                if(change != isl_change_none)
+                    isl_coalescing_statistics(1, PAIR_ADJ_INEQ);
 	} else {
+                // Case "Overlap" 2
+                // The only cut constraints correspond to facets which lie inside other map.
+                // Fuse two maps into a single one.
 		if (!any_eq(&info[i], STATUS_CUT) &&
-		    !any_eq(&info[j], STATUS_CUT))
+		    !any_eq(&info[j], STATUS_CUT)) {
 			change = check_facets(i, j, info);
-		if (change == isl_change_none)
-			change = check_wrap(i, j, info);
+                        if(change != isl_change_none)
+                            isl_coalescing_statistics(1, OVERLAP);
+                }
+		if (change == isl_change_none) {
+                    // Case "Protrusion" 8
+		        change = check_wrap(i, j, info);
+                        if(change != isl_change_none)
+                            isl_coalescing_statistics(1, PROTR);
+                }
 	}
 
 done:
@@ -3093,10 +3159,14 @@ static enum isl_change coalesce_with_expanded_divs(
 	if (any_ineq(info_i, STATUS_SEPARATE))
 		goto done;
 
+    // TODO: is this correct?
+    // Case "Subset" 1
+    // Expanded map covers the other one
 	if (all(info_i->eq, 2 * bmap->n_eq, STATUS_VALID) &&
 	    all(info_i->ineq, bmap->n_ineq, STATUS_VALID)) {
 		drop(&info[j]);
 		change = isl_change_drop_second;
+        isl_coalescing_statistics(1, SUBSET);
 	}
 
 	if (change == isl_change_none && i != -1)
@@ -3695,18 +3765,23 @@ static enum isl_change coalesce_pair(int i, int j,
 	same = same_divs(info[i].bmap, info[j].bmap);
 	if (same < 0)
 		return isl_change_error;
-	if (same)
-		return coalesce_local_pair(i, j, info);
+	if (same) {
+		change = coalesce_local_pair(i, j, info);
+                return change;
+        }
 
 	if (info[i].bmap->n_div == info[j].bmap->n_div) {
 		change = coalesce_local_pair(i, j, info);
-		if (change != isl_change_none)
+		if (change != isl_change_none) {
 			return change;
+                }
 	}
+   
 
 	change = coalesce_divs(i, j, info);
-	if (change != isl_change_none)
+	if (change != isl_change_none) {
 		return change;
+        }
 
 	return check_coalesce_eq(i, j, info);
 }
@@ -3736,20 +3811,36 @@ static int coalesce_range(isl_ctx *ctx, struct isl_coalesce_info *info,
 	int start1, int end1, int start2, int end2)
 {
 	int i, j;
-
+        int old_stats[LAST]; 
 	for (i = end1 - 1; i >= start1; --i) {
 		if (info[i].removed)
 			continue;
 		for (j = isl_max(i + 1, start2); j < end2; ++j) {
-			enum isl_change changed;
-
+			enum isl_change changed; 
 			if (info[j].removed)
 				continue;
 			if (info[i].removed)
 				isl_die(ctx, isl_error_internal,
 					"basic map unexpectedly removed",
 					return -1);
-			changed = coalesce_pair(i, j, info);
+                        isl_coalescing_statistics(1, ALL);
+                        for(int i = 0; i < LAST; ++i)
+                            old_stats[i] = isl_coalescing_statistics(0, i);
+                                    changed = coalesce_pair(i, j, info);
+                        if(changed == isl_change_none) {
+                            for(int i = 0; i < LAST; ++i) {
+                                if(old_stats[i] != isl_coalescing_statistics(0, i))
+                                    fprintf(stderr, "ERROR");
+                                assert(old_stats[i] == isl_coalescing_statistics(0, i));
+                            }
+                        } else {
+                            int changed_flag = 0;
+                            for(int i = 0; i < LAST; ++i)
+                                changed_flag |= old_stats[i] != isl_coalescing_statistics(0, i);
+                            if(!changed_flag)
+                                fprintf(stderr, "ERROR %d", changed);
+                            assert(changed_flag);
+                        }
 			switch (changed) {
 			case isl_change_error:
 				return -1;
@@ -3765,7 +3856,6 @@ static int coalesce_range(isl_ctx *ctx, struct isl_coalesce_info *info,
 			}
 		}
 	}
-
 	return 0;
 }
 

@@ -238,6 +238,16 @@ int main(int argc, char **argv)
 	p = isl_printer_print_ast_node(p, tree);
 	isl_printer_free(p);
 
+    printf("All: %d\n", isl_coalescing_statistics(0, ALL) );
+    printf("Subset: %d\n", isl_coalescing_statistics(0, SUBSET) );
+    printf("Overlap: %d\n", isl_coalescing_statistics(0, OVERLAP) );
+    printf("Pair_ineq: %d\n", isl_coalescing_statistics(0, PAIR_ADJ_INEQ) );
+    printf("Adj_ineq: %d\n", isl_coalescing_statistics(0, ADJ_INEQ) );
+    printf("Two_adj_eq: %d\n", isl_coalescing_statistics(0, TWO_ADJ_EQ) );
+    printf("Ext: %d\n", isl_coalescing_statistics(0, EXT) );
+    printf("Wrap_ext: %d\n", isl_coalescing_statistics(0, WRAP_EXT) );
+    printf("Protrusion: %d\n", isl_coalescing_statistics(0, PROTR) );
+
 	isl_ast_node_free(tree);
 
 	isl_ctx_free(ctx);

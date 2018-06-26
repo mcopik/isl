@@ -254,6 +254,9 @@ int isl_ctx_last_error_line(isl_ctx *ctx);
 void isl_ctx_reset_error(isl_ctx *ctx);
 void isl_ctx_set_error(isl_ctx *ctx, enum isl_error error);
 
+typedef enum {ALL, SUBSET, OVERLAP, PAIR_ADJ_INEQ, ADJ_INEQ, TWO_ADJ_EQ, EXT, WRAP_EXT, PROTR, LAST} coalescing_t;
+int isl_coalescing_statistics(int update, coalescing_t type);
+
 #if defined(__cplusplus)
 }
 #endif
