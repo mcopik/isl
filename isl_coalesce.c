@@ -1935,18 +1935,18 @@ static enum isl_change check_single_adj_eq(int i, int j,
 		free(relax);
         // Case "Extension" 5
         // Constraint can be relaxed to include adjacent equality.
-    if (change != isl_change_none) {
-        isl_coalescing_statistics(1, EXT);
-		return change;
-    }
+        if (change != isl_change_none) {
+            isl_coalescing_statistics(1, EXT);
+                    return change;
+        }
 
 	change = can_wrap_in_facet(i, j, k, info, n_cut > 0);
 
-    // Case "Wrapped extension" 6
-    // Adjacent equality can be wrapped
-    if (change != isl_change_none) {
-            isl_coalescing_statistics(1, WRAP_EXT);
-    }
+        // Case "Wrapped extension" 6
+        // Adjacent equality can be wrapped
+        if (change != isl_change_none) {
+                isl_coalescing_statistics(1, WRAP_EXT);
+        }
 
 	return change;
 }
@@ -2386,15 +2386,15 @@ static enum isl_change coalesce_local_pair_reuse(int i, int j,
                 // Fuse two maps into a single one.
 		if (!any_eq(&info[i], STATUS_CUT) &&
 		    !any_eq(&info[j], STATUS_CUT)) {
-			change = check_facets(i, j, info);
-                        if(change != isl_change_none)
-                            isl_coalescing_statistics(1, OVERLAP);
+                    change = check_facets(i, j, info);
+                    if(change != isl_change_none)
+                        isl_coalescing_statistics(1, OVERLAP);
                 }
 		if (change == isl_change_none) {
                     // Case "Protrusion" 8
-		        change = check_wrap(i, j, info);
-                        if(change != isl_change_none)
-                            isl_coalescing_statistics(1, PROTR);
+                    change = check_wrap(i, j, info);
+                    if(change != isl_change_none)
+                        isl_coalescing_statistics(1, PROTR);
                 }
 	}
 
@@ -3159,14 +3159,13 @@ static enum isl_change coalesce_with_expanded_divs(
 	if (any_ineq(info_i, STATUS_SEPARATE))
 		goto done;
 
-    // TODO: is this correct?
-    // Case "Subset" 1
-    // Expanded map covers the other one
+        // Case "Subset" 1
+        // Expanded map covers the other one
 	if (all(info_i->eq, 2 * bmap->n_eq, STATUS_VALID) &&
 	    all(info_i->ineq, bmap->n_ineq, STATUS_VALID)) {
 		drop(&info[j]);
 		change = isl_change_drop_second;
-        isl_coalescing_statistics(1, SUBSET);
+            isl_coalescing_statistics(1, SUBSET);
 	}
 
 	if (change == isl_change_none && i != -1)
@@ -3826,19 +3825,15 @@ static int coalesce_range(isl_ctx *ctx, struct isl_coalesce_info *info,
                         isl_coalescing_statistics(1, ALL);
                         for(int i = 0; i < LAST; ++i)
                             old_stats[i] = isl_coalescing_statistics(0, i);
-                                    changed = coalesce_pair(i, j, info);
+                        changed = coalesce_pair(i, j, info);
                         if(changed == isl_change_none) {
                             for(int i = 0; i < LAST; ++i) {
-                                if(old_stats[i] != isl_coalescing_statistics(0, i))
-                                    fprintf(stderr, "ERROR");
                                 assert(old_stats[i] == isl_coalescing_statistics(0, i));
                             }
                         } else {
                             int changed_flag = 0;
                             for(int i = 0; i < LAST; ++i)
                                 changed_flag |= old_stats[i] != isl_coalescing_statistics(0, i);
-                            if(!changed_flag)
-                                fprintf(stderr, "ERROR %d", changed);
                             assert(changed_flag);
                         }
 			switch (changed) {
