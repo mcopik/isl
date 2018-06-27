@@ -1665,7 +1665,13 @@ static enum isl_change try_wrap_in_facets(int i, int j,
 			return isl_change_none;
 	}
 
-	return fuse(i, j, info, wraps->mat, 0, 1);
+        enum isl_change change = fuse(i, j, info, wraps->mat, 0, 1);
+        // Case 6 "Wrapped Extensions"
+        // The function tries to apply relaxing and wrapping to fuse two maps
+        if(change != isl_change_none) {
+                isl_coalescing_statistics(1, WRAP_EXT);
+        }
+        return change;
 }
 
 /* Given a pair of basic maps i and j such that j sticks out
@@ -1936,8 +1942,8 @@ static enum isl_change check_single_adj_eq(int i, int j,
         // Case "Extension" 5
         // Constraint can be relaxed to include adjacent equality.
         if (change != isl_change_none) {
-            isl_coalescing_statistics(1, EXT);
-                    return change;
+                isl_coalescing_statistics(1, EXT);
+                return change;
         }
 
 	change = can_wrap_in_facet(i, j, k, info, n_cut > 0);
@@ -3232,7 +3238,6 @@ static enum isl_change coalesce_after_aligning_divs(
 	div = isl_merge_divs(div_i, div_j, exp1, exp2);
 	if (!div)
 		goto error;
-
 	if (div->n_row == div_j->n_row)
 		change = coalesce_with_expanded_divs(bmap_i,
 							i, j, info, div, exp1);
@@ -3348,7 +3353,6 @@ static enum isl_change coalesce_divs(int i, int j,
 		change = coalesce_after_aligning_divs(info[j].bmap, j, i, info);
 	if (change != isl_change_none)
 		return invert_change(change);
-
 	change = coalesce_subset_with_equalities(i, j, info);
 	if (change != isl_change_none)
 		return change;
