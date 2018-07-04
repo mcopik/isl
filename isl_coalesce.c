@@ -3827,7 +3827,30 @@ static int coalesce_range(isl_ctx *ctx, struct isl_coalesce_info *info,
                         isl_coalescing_statistics(1, ALL);
                         for(int i = 0; i < LAST; ++i)
                             old_stats[i] = isl_coalescing_statistics(0, i);
-                        changed = coalesce_pair(i, j, info);
+                        //changed = coalesce_pair(i, j, info);
+			isl_map * map = isl_basic_map_union(info[i].bmap, info[j].bmap);
+			isl_basic_map * hull_basic = isl_map_convex_hull( isl_map_copy(map) );
+			isl_map * hull = isl_map_from_basic_map( isl_basic_map_copy(hull_basic));
+			if(isl_map_is_equal(map, hull)) {
+
+				// replace first map with convex hull
+				isl_basic_map_free(info[i].bmap);
+				info[i].bmap = hull_basic;
+				isl_tab_free(info[i].tab);
+				info[i].tab = isl_tab_from_basic_map(hull_basic, 0);
+				// drop other map
+				drop(&info[j]);
+				// set up the rest
+				clear_status(&info[i]);
+				clear_status(&info[j]);
+				changed = isl_change_fuse;
+                        	isl_coalescing_statistics(1, SUBSET);
+			} else {
+				isl_basic_map_free(hull_basic);
+				changed = isl_change_none;
+			}
+			isl_map_free(hull);
+			isl_map_free(map);
                         if(changed == isl_change_none) {
                             for(int i = 0; i < LAST; ++i) {
                                 assert(old_stats[i] == isl_coalescing_statistics(0, i));
